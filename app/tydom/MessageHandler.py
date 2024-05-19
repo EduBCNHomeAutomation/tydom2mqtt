@@ -9,6 +9,7 @@ import urllib3
 from sensors.Alarm import Alarm
 from sensors.Boiler import Boiler
 from sensors.Cover import Cover
+from sensors.Awning import Awning
 from sensors.Light import Light
 from sensors.Sensor import Sensor
 from sensors.Switch import Switch
@@ -123,6 +124,19 @@ deviceCoverDetailsKeywords = [
     'position',
     'slope']
 
+deviceAwningKeywords = [
+    'thermicDefect',
+    'position',
+    'onFavPos',
+    'upDefect',
+    'downDefect',
+    'obstacleDefect',
+    'intrusion',
+    'battDefect',
+    'jobsMP',
+    'softVersion',
+    'softPlan']
+
 deviceBoilerKeywords = [
     'thermicLevel',
     'delayThermicLevel',
@@ -222,6 +236,8 @@ class MessageHandler:
         bytes_str = self.incoming_bytes
         incoming = None
         first = str(bytes_str[:40])
+        logger.debug ('First value is= %s',first)
+
         try:
             if "Uri-Origin: /refresh/all" in first in first:
                 pass
@@ -230,6 +246,7 @@ class MessageHandler:
                 try:
                     try:
                         incoming = self.parse_put_response(bytes_str)
+                        logger.debug('Incoming message for put %s',incoming)
                     except BaseException:
                         # Tywatt response starts at 7
                         incoming = self.parse_put_response(bytes_str, 7)
@@ -249,15 +266,21 @@ class MessageHandler:
             elif ("POST" in first):
                 try:
                     incoming = self.parse_put_response(bytes_str)
+                    logger.debug('Incoming message for POST %s',incoming)
                     await self.parse_response(incoming)
                     logger.debug('POST message processed')
                 except BaseException:
                     logger.error(
                         'Error when parsing POST tydom message (%s)', bytes_str)
             elif ("HTTP/1.1" in first):
-                response = self.response_from_bytes(
-                    bytes_str[len(self.cmd_prefix):])
+                logger.debug('Decoding HTTP/1.1')
+                response = self.response_from_bytes(bytes_str)
+                #    bytes_str[len(self.cmd_prefix):])
+                
                 incoming = response.data.decode("utf-8")
+                # incoming = response.data
+                # logger.debug('HTTP incoming is %s', incoming)
+
                 try:
                     await self.parse_response(incoming)
                 except BaseException:
@@ -269,9 +292,9 @@ class MessageHandler:
 
         except Exception as e:
             logger.error(
-                'Technical error when parsing tydom message (%s)',
-                bytes_str)
-            logger.debug('Incoming payload (%s)', incoming)
+                'Technical error when parsing tydom message (%s)','temp value')
+                # bytes_str)
+            
 
     # Basic response parsing. Typically GET responses + instanciate covers and
     # alarm class for updating data
@@ -326,12 +349,19 @@ class MessageHandler:
 
     @staticmethod
     async def parse_config_data(parsed):
+        logger.debug('Parsing config data %s', parsed)
         for i in parsed["endpoints"]:
+
             device_unique_id = str(i["id_endpoint"]) + \
                 "_" + str(i["id_device"])
 
-            if i["last_usage"] == 'shutter' or i["last_usage"] == 'klineShutter' or i["last_usage"] == 'light' or i["last_usage"] == 'window' or i["last_usage"] == 'windowFrench' or i["last_usage"] == 'windowSliding' or i[
+            if i["last_usage"] == 'shutter' or i["last_usage"] == 'awning' or i["last_usage"] == 'klineShutter' or i["last_usage"] == 'light' or i["last_usage"] == 'window' or i["last_usage"] == 'windowFrench' or i["last_usage"] == 'windowSliding' or i[
                     "last_usage"] == 'belmDoor' or i["last_usage"] == 'klineDoor' or i["last_usage"] == 'klineWindowFrench' or i["last_usage"] == 'klineWindowSliding' or i["last_usage"] == 'garage_door' or i["last_usage"] == 'gate':
+                device_name[device_unique_id] = i["name"]
+                device_type[device_unique_id] = i["last_usage"]
+                device_endpoint[device_unique_id] = i["id_endpoint"]
+
+            if i["last_usage"] == 'others':
                 device_name[device_unique_id] = i["name"]
                 device_type[device_unique_id] = i["last_usage"]
                 device_endpoint[device_unique_id] = i["id_endpoint"]
@@ -357,6 +387,7 @@ class MessageHandler:
                 device_endpoint[device_unique_id] = i["id_endpoint"]
 
             if i["last_usage"] == '':
+                logger.debug ('Unknown config %s',i)
                 device_name[device_unique_id] = i["name"]
                 device_type[device_unique_id] = 'unknown'
                 device_endpoint[device_unique_id] = i["id_endpoint"]
@@ -413,11 +444,13 @@ class MessageHandler:
 
     async def parse_devices_data(self, parsed):
         for i in parsed:
+            logger.debug ('Parsed number %s', i)
             for endpoint in i["endpoints"]:
                 if endpoint["error"] == 0 and len(endpoint["data"]) > 0:
                     try:
                         attr_alarm = {}
                         attr_cover = {}
+                        attr_awning = {}
                         attr_door = {}
                         attr_ukn = {}
                         attr_window = {}
@@ -425,6 +458,7 @@ class MessageHandler:
                         attr_gate = {}
                         attr_boiler = {}
                         attr_smoke = {}
+                        attr_others = {}
                         device_id = i["id"]
                         endpoint_id = endpoint["id"]
                         unique_id = str(endpoint_id) + "_" + str(device_id)
@@ -432,6 +466,13 @@ class MessageHandler:
                         type_of_id = self.get_type_from_id(unique_id)
 
                         logger.info(
+                            'Device update (id=%s, endpoint=%s, name=%s, type=%s)',
+                            device_id,
+                            endpoint_id,
+                            name_of_id,
+                            type_of_id)
+                        
+                        logger.debug(
                             'Device update (id=%s, endpoint=%s, name=%s, type=%s)',
                             device_id,
                             endpoint_id,
@@ -470,6 +511,18 @@ class MessageHandler:
                                         attr_cover['tilt'] = element_value
                                     else:
                                         attr_cover[element_name] = element_value
+
+                            if type_of_id == 'awning':
+                                if element_name in deviceAwningKeywords and element_validity == 'upToDate':
+                                    attr_awning['device_id'] = device_id
+                                    attr_awning['endpoint_id'] = endpoint_id
+                                    attr_awning['id'] = str(
+                                        device_id) + '_' + str(endpoint_id)
+                                    attr_awning['awning_name'] = print_id
+                                    attr_awning['name'] = print_id
+                                    attr_awning['device_type'] = 'awning'
+                                    attr_awning[element_name] = element_value
+                                    logger.debug ('Element %s updated with value %s',element_name,element_value)
 
                             if type_of_id == 'belmDoor' or type_of_id == 'klineDoor':
                                 if element_name in deviceDoorKeywords and element_validity == 'upToDate':
@@ -517,7 +570,7 @@ class MessageHandler:
                                     attr_alarm['device_type'] = 'alarm_control_panel'
                                     attr_alarm[element_name] = element_value
 
-                            if type_of_id == 'garage_door' or type_of_id == 'gate':
+                            if type_of_id == 'garage_door' or type_of_id == 'gate' or type_of_id == 'others':
                                 if element_name in deviceSwitchKeywords and element_validity == 'upToDate':
                                     attr_gate['device_id'] = device_id
                                     attr_gate['endpoint_id'] = endpoint_id
@@ -563,6 +616,7 @@ class MessageHandler:
                                     attr_smoke[element_name] = element_value
 
                             if type_of_id == 'unknown':
+                                logger.debug ('Unknowng element found %s',element_name)
                                 if element_name in deviceMotionKeywords and element_validity == 'upToDate':
                                     attr_ukn['device_id'] = device_id
                                     attr_ukn['endpoint_id'] = endpoint_id
@@ -591,6 +645,12 @@ class MessageHandler:
                             tydom_attributes=attr_cover,
                             mqtt=self.mqtt_client)
                         await new_cover.update()
+                    elif 'device_type' in attr_awning and attr_awning['device_type'] == 'awning':
+                        logger.debug ('Sending attributes awning which are %s', attr_awning)
+                        new_awning = Awning(
+                            tydom_attributes=attr_awning,
+                            mqtt=self.mqtt_client)
+                        await new_awning.update()
                     elif 'device_type' in attr_door and attr_door['device_type'] == 'sensor':
                         new_door = Sensor(
                             elem_name=attr_door['element_name'],
@@ -791,10 +851,25 @@ class MessageHandler:
 
     @staticmethod
     def response_from_bytes(data):
+        logger.debug ('Data in response from bytes')
         sock = BytesIOSocket(data)
+        logger.debug ('Sock value is %s', sock)
         response = HTTPResponse(sock)
+        # logger.debug ('Response is %s', response)
         response.begin()
-        return urllib3.HTTPResponse.from_httplib(response)
+        logger.debug ('Response begin OK')
+
+        try:
+            resp = urllib3.response.HTTPResponse(response)
+            # logger.debug (resp.data)
+
+        except Exception as e:
+            logger.debug(e)
+
+        logger.debug ('After resp')
+
+        return resp
+
 
     @staticmethod
     def put_response_from_bytes(data):

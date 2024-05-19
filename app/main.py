@@ -4,6 +4,7 @@ import logging.config
 import socket
 import sys
 import signal
+import platform
 
 from configuration.Configuration import Configuration
 from mqtt.MqttClient import MqttClient
@@ -83,6 +84,12 @@ mqtt_client = MqttClient(
 )
 
 
+def raise_graceful_exit(*args):
+    loop.stop()
+    print("Gracefully shutdown")
+    raise GracefulExit()
+
+
 async def shutdown(signal, loop):
     logging.info('Received exit signal %s', signal.name)
     logging.info("Cancelling running tasks")
@@ -105,10 +112,17 @@ async def shutdown(signal, loop):
 
 def main():
     loop = asyncio.new_event_loop()
-    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
-    for s in signals:
-        loop.add_signal_handler(
-            s, lambda s=s: asyncio.create_task(shutdown(s, loop)))
+
+    signal.signal (signal.SIGINT, raise_graceful_exit)
+    signal.signal (signal.SIGTERM, raise_graceful_exit)
+
+    #if platform.system() != 'Linux':
+    #    signal.SIGHUP = 1
+
+    # signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+    # for s in signals:
+    #    loop.add_signal_handler(
+    #        s, lambda s=s: asyncio.create_task(shutdown(s, loop)))
 
     loop.create_task(mqtt_client.connect())
     loop.create_task(listen_tydom())

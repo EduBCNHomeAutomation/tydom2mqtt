@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # Configuration constants
 LOG_LEVEL = 'LOG_LEVEL'
 MQTT_HOST = 'MQTT_HOST'
-MQTT_PASSWORD = 'MQTT_PASSWORD'
+MQTT_PASSWORD = 'MQTT_PASSWORD!'
 MQTT_PORT = 'MQTT_PORT'
 MQTT_SSL = 'MQTT_SSL'
 MQTT_USER = 'MQTT_USER'
@@ -38,18 +38,18 @@ class Configuration:
     tydom_password = str
 
     def __init__(self):
-        self.log_level = os.getenv(LOG_LEVEL, 'INFO').upper()
-        self.mqtt_host = os.getenv(MQTT_HOST, 'localhost')
-        self.mqtt_password = os.getenv(MQTT_PASSWORD, None)
+        self.log_level = os.getenv(LOG_LEVEL, 'DEBUG').upper()
+        self.mqtt_host = os.getenv(MQTT_HOST, '192.168.0.115')
+        self.mqtt_password = os.getenv(MQTT_PASSWORD, 'edcvfr43AQ!')
         self.mqtt_port = os.getenv(MQTT_PORT, 1883)
         self.mqtt_ssl = os.getenv(MQTT_SSL, False)
-        self.mqtt_user = os.getenv(MQTT_USER, None)
+        self.mqtt_user = os.getenv(MQTT_USER, 'edu')
         self.tydom_alarm_home_zone = os.getenv(TYDOM_ALARM_HOME_ZONE, 1)
         self.tydom_alarm_night_zone = os.getenv(TYDOM_ALARM_NIGHT_ZONE, 2)
         self.tydom_alarm_pin = os.getenv(TYDOM_ALARM_PIN, None)
-        self.tydom_ip = os.getenv(TYDOM_IP, 'mediation.tydom.com')
-        self.tydom_mac = os.getenv(TYDOM_MAC, None)
-        self.tydom_password = os.getenv(TYDOM_PASSWORD, None)
+        self.tydom_ip = os.getenv(TYDOM_IP, '192.168.0.114')
+        self.tydom_mac = os.getenv(TYDOM_MAC, '001A2502F770')
+        self.tydom_password = os.getenv(TYDOM_PASSWORD, 'edc76910')
 
     @staticmethod
     def load():

@@ -12,6 +12,7 @@ from sensors.Boiler import Boiler
 from sensors.Cover import Cover
 from sensors.Light import Light
 from sensors.Switch import Switch
+from sensors.Awning import Awning
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,8 @@ class MqttClient:
             logger.info("Mqtt connection error (%s)", e)
 
     async def on_message(self, client, topic, payload, qos, properties):
+        #logger.debug ('Topic is %s',str(topic))
+
         if 'update' in str(topic):
             value = payload.decode()
             logger.info(
@@ -124,10 +127,17 @@ class MqttClient:
                 'set_positionCmd message received (topic=%s, message=%s)',
                 topic,
                 value)
+            device_type = (topic.split("/"))[0]
+            logger.debug ('Device type is %s',str(device_type))
             get_id = (topic.split("/"))[2]
             device_id = (get_id.split("_"))[0]
             endpoint_id = (get_id.split("_"))[1]
-            await Cover.put_positionCmd(tydom_client=self.tydom, device_id=device_id, cover_id=endpoint_id,
+            
+            if (device_type == 'awning'):
+                await Awning.put_positionCmd(tydom_client=self.tydom, device_id=device_id, awning_id=endpoint_id,
+                                        positionCmd=str(value))
+            elif (device_type != 'awning'):
+                await Cover.put_positionCmd(tydom_client=self.tydom, device_id=device_id, cover_id=endpoint_id,
                                         positionCmd=str(value))
 
         elif ('set_position' in str(topic)) and not ('set_positionCmd' in str(topic)):
@@ -136,10 +146,15 @@ class MqttClient:
                 'set_position message received (topic=%s, message=%s)',
                 topic,
                 value)
+            device_type = (topic.split("/"))[0]
+            logger.debug ('Device type is %s',str(device_type))
             get_id = (topic.split("/"))[2]
             device_id = (get_id.split("_"))[0]
             endpoint_id = (get_id.split("_"))[1]
-            await Cover.put_position(tydom_client=self.tydom, device_id=device_id, cover_id=endpoint_id, position=str(value))
+            if (device_type == 'awning'):
+                await Awning.put_position(tydom_client=self.tydom, device_id=device_id, awning_id=endpoint_id,position=str(value))
+            elif (device_type != 'awning'):
+                await Cover.put_position(tydom_client=self.tydom, device_id=device_id, cover_id=endpoint_id, position=str(value))
 
         elif 'set_tilt' in str(topic):
             value = json.loads(payload)

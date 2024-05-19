@@ -72,6 +72,8 @@ class TydomClient:
             None,
             http_headers,
         )
+
+        logger.debug("Initial GET request " + "/mediation/client?mac={}&appli=1".format(self.mac) )
         res = conn.getresponse()
         conn.close()
 

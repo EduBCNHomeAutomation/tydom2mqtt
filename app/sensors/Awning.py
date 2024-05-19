@@ -3,16 +3,14 @@ import logging
 from .Sensor import Sensor
 
 logger = logging.getLogger(__name__)
-cover_command_topic = "cover/tydom/{id}/set_positionCmd"
-cover_config_topic = "homeassistant/cover/tydom/{id}/config"
-cover_position_topic = "cover/tydom/{id}/current_position"
-cover_tilt_topic = "cover/tydom/{id}/current_tilt"
-cover_set_position_topic = "cover/tydom/{id}/set_position"
-cover_set_tilt_topic = "cover/tydom/{id}/set_tilt"
-cover_attributes_topic = "cover/tydom/{id}/attributes"
+awning_command_topic = "awning/tydom/{id}/set_positionCmd"
+awning_config_topic = "homeassistant/cover/tydom/{id}/config"
+awning_position_topic = "awning/tydom/{id}/current_position"
+awning_set_position_topic = "awning/tydom/{id}/set_position"
+awning_attributes_topic = "awning/tydom/{id}/attributes"
 
 
-class Cover:
+class Awning:
     def __init__(self, tydom_attributes, set_position=None, mqtt=None):
         self.device = None
         self.config = None
@@ -21,33 +19,31 @@ class Cover:
         self.device_id = self.attributes['device_id']
         self.endpoint_id = self.attributes['endpoint_id']
         self.id = self.attributes['id']
-        self.name = self.attributes['cover_name']
+        self.name = self.attributes['awning_name']
         self.set_position = set_position
 
-        logger.debug ('COVER attributes are %s', tydom_attributes)
+        logger.debug ('Evaluating TYDOM attributes %s',tydom_attributes)
         if 'position' in tydom_attributes:
+            logger.debug ('Position in awning attributes')
             self.current_position = self.attributes['position']
-
-        if 'tilt' in tydom_attributes:
-            self.current_tilt = self.attributes['tilt']
 
         self.mqtt = mqtt
 
-    async def setup(self):
+    async def setup(self):  
         self.device = {
             'manufacturer': 'Delta Dore',
             'model': 'Volet',
             'name': self.name,
             'identifiers': self.id}
-        self.config_topic = cover_config_topic.format(id=self.id)
+        self.config_topic = awning_config_topic.format(id=self.id)
         self.config = {
             'name': self.name,
             'unique_id': self.id,
-            'command_topic': cover_command_topic.format(
+            'command_topic': awning_command_topic.format(
                 id=self.id),
-            'set_position_topic': cover_set_position_topic.format(
+            'set_position_topic': awning_set_position_topic.format(
                 id=self.id),
-            'position_topic': cover_position_topic.format(
+            'position_topic': awning_position_topic.format(
                 id=self.id),
             'payload_open': "UP",
             'payload_close': "DOWN",
@@ -56,13 +52,7 @@ class Cover:
             'device': self.device,
             'device_class': 'shutter'}
 
-        if 'tilt' in self.attributes:
-            self.config['tilt_command_topic'] = cover_set_tilt_topic.format(
-                id=self.id)
-            self.config['tilt_status_topic'] = cover_tilt_topic.format(
-                id=self.id)
-
-        self.config['json_attributes_topic'] = cover_attributes_topic.format(
+        self.config['json_attributes_topic'] = awning_attributes_topic.format(
             id=self.id)
 
         if self.mqtt is not None:
@@ -76,7 +66,7 @@ class Cover:
         try:
             await self.update_sensors()
         except Exception as e:
-            logger.error("Cover sensors Error :")
+            logger.error("Awning sensors Error :")
             logger.error(e)
 
         if self.mqtt is not None and 'position' in self.attributes:
@@ -85,18 +75,12 @@ class Cover:
                 self.current_position,
                 qos=0, retain=True)
 
-        if self.mqtt is not None and 'tilt' in self.attributes:
-            self.mqtt.mqtt_client.publish(
-                self.config['tilt_status_topic'],
-                self.current_tilt,
-                qos=0, retain=True)
-
         if self.mqtt is not None:
             self.mqtt.mqtt_client.publish(
                 self.config['json_attributes_topic'], self.attributes, qos=0, retain=True)
 
         logger.info(
-            "Cover created / updated : %s %s",
+            "Awning created / updated : %s %s",
             self.name,
             self.id)
 
@@ -109,17 +93,12 @@ class Cover:
                     mqtt=self.mqtt)
                 await new_sensor.update()
 
-    async def put_position(tydom_client, device_id, cover_id, position):
-        logger.info("%s %s %s", cover_id, 'position', position)
+    async def put_position(tydom_client, device_id, awning_id, position):
+        logger.info("%s %s %s", awning_id, 'position', position)
         if not (position == ''):
-            await tydom_client.put_devices_data(device_id, cover_id, 'position', position)
+            await tydom_client.put_devices_data(device_id, awning_id, 'position', position)
 
-    async def put_tilt(tydom_client, device_id, cover_id, tilt):
-        logger.info("%s %s %s", cover_id, 'tilt', tilt)
-        if not (tilt == ''):
-            await tydom_client.put_devices_data(device_id, cover_id, 'slope', tilt)
-
-    async def put_positionCmd(tydom_client, device_id, cover_id, positionCmd):
-        logger.info("%s %s %s", cover_id, 'positionCmd', positionCmd)
+    async def put_positionCmd(tydom_client, device_id, awning_id, positionCmd):
+        logger.info("%s %s %s", awning_id, 'positionCmd', positionCmd)
         if not (positionCmd == ''):
-            await tydom_client.put_devices_data(device_id, cover_id, 'positionCmd', positionCmd)
+            await tydom_client.put_devices_data(device_id, awning_id, 'positionCmd', positionCmd)
